@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ממיר קולות כיפי</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; text-align: center; background-color: #f4f4f9; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; text-align: center; background-color: #f8f9fa; }
         h1 { color: #333; }
-        .step { margin-bottom: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 12px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 1.1em; color: #555; }
-        button { background-color: #007bff; color: white; padding: 15px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.2em; width: 100%; transition: background-color 0.3s; }
-        button:hover { background-color: #0056b3; }
+        .step { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 1.1em; color: #555;}
+        input[type="file"] { width: 100%; padding: 10px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 15px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1.2em; width: 100%; transition: background-color 0.3s; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         #recordButton { background-color: #dc3545; }
-        #recordButton.recording { background-color: #ffc107; color: black; }
+        #recordButton.recording { background-color: #ffc107; }
+        #recordButton.recorded { background-color: #28a745; }
         #status { margin-top: 20px; font-style: italic; color: #555; min-height: 20px; }
         audio { width: 100%; margin-top: 20px; }
-        #result a button { background-color: #28a745; margin-top: 10px; }
-        #result a button:hover { background-color: #218838; }
+        #result a button { background-color: #17a2b8; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -52,16 +52,12 @@
         let mediaRecorder;
         let audioChunks = [];
 
-        // !!! ---  החלק החשוב ביותר --- !!!
-        // הדבק כאן את הכתובת של השרת שלך מ-Render
-        const SERVER_URL = "https://voice-changer-ofir.onrender.com/convert-voice-eden/";
-        // !!! --------------------------------- !!!
-
         recordButton.onclick = async () => {
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
                 recordButton.textContent = "הקלט מחדש";
                 recordButton.classList.remove('recording');
+                recordButton.classList.add('recorded');
             } else {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -70,18 +66,19 @@
                     audioChunks = [];
                     recordButton.textContent = "עצור הקלטה...";
                     recordButton.classList.add('recording');
+                    recordButton.classList.remove('recorded');
 
                     mediaRecorder.ondataavailable = event => {
                         audioChunks.push(event.data);
                     };
 
                     mediaRecorder.onstop = () => {
-                        sourceAudioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        sourceAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         checkIfReady();
                     };
                 } catch (err) {
-                    statusDiv.textContent = "שגיאה: לא ניתן לגשת למיקרופון.";
-                    console.error("Error accessing microphone:", err);
+                    statusDiv.textContent = 'שגיאה: לא ניתן לגשת למיקרופון. אנא אשר הרשאה.';
+                    console.error("Microphone access error:", err);
                 }
             }
         };
@@ -104,13 +101,16 @@
                 return;
             }
 
-            statusDiv.textContent = "מעבד... זה יכול לקחת כמה שניות...";
+            statusDiv.textContent = "מעבד... השרת מתעורר, זה יכול לקחת כדקה...";
             convertButton.disabled = true;
             resultDiv.innerHTML = "";
 
             const formData = new FormData();
-            formData.append('source_audio', sourceAudioBlob, 'source.wav');
+            formData.append('source_audio', sourceAudioBlob, 'source.webm');
             formData.append('reference_audio', refAudioInput.files[0]);
+            
+            // This is the updated and correct server URL
+            const SERVER_URL = "https://voice-changer-v2.onrender.com/convert-voice-eden/";
 
             try {
                 const response = await fetch(SERVER_URL, {
@@ -127,15 +127,15 @@
                         <a href="${audioUrl}" download="converted_voice.wav">
                             <button>הורד ושתף</button>
                         </a>`;
-                    statusDiv.textContent = "ההמרה הצליחה!";
+                    statusDiv.textContent = "ההמרה הסתיימה בהצלחה!";
                 } else {
-                    const errorData = await response.text();
-                    statusDiv.textContent = "אוי... קרתה שגיאה בשרת. נסה שוב.";
-                    console.error("Server error:", errorData);
+                    const errorJson = await response.json();
+                    statusDiv.textContent = `אוי... קרתה שגיאה בשרת. קוד: ${response.status}.`;
+                    console.error("Server error:", errorJson);
                 }
             } catch (error) {
                 statusDiv.textContent = "שגיאת רשת. ודא שהשרת פועל ושהכתובת נכונה.";
-                console.error(error);
+                console.error("Network or CORS error:", error);
             } finally {
                 convertButton.disabled = false;
             }
