@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ממיר קולות כיפי</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; text-align: center; background-color: #f4f4f9; }
+        h1 { color: #333; }
+        .step { margin-bottom: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 12px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        label { display: block; margin-bottom: 10px; font-weight: bold; font-size: 1.1em; color: #555; }
+        button { background-color: #007bff; color: white; padding: 15px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.2em; width: 100%; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #recordButton { background-color: #dc3545; }
+        #recordButton.recording { background-color: #ffc107; color: black; }
+        #status { margin-top: 20px; font-style: italic; color: #555; min-height: 20px; }
+        audio { width: 100%; margin-top: 20px; }
+        #result a button { background-color: #28a745; margin-top: 10px; }
+        #result a button:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+    <h1>ממיר קולות כיפי</h1>
+
+    <div class="step">
+        <label for="ref-audio">שלב 1: בחר את קול היעד (MP3/WAV)</label>
+        <input type="file" id="ref-audio" accept="audio/*">
+    </div>
+
+    <div class="step">
+        <label>שלב 2: הקלט את עצמך</label>
+        <button id="recordButton">הקלט עכשיו</button>
+    </div>
+
+    <div class="step">
+        <label>שלב 3: המר ושתף!</label>
+        <button id="convertButton" disabled>המר קול</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="result"></div>
+
+    <script>
+        const refAudioInput = document.getElementById('ref-audio');
+        const recordButton = document.getElementById('recordButton');
+        const convertButton = document.getElementById('convertButton');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+
+        let sourceAudioBlob = null;
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // !!! ---  החלק החשוב ביותר --- !!!
+        // הדבק כאן את הכתובת של השרת שלך מ-Render
+        const SERVER_URL = "https://voice-changer-ofir.onrender.com/convert-voice-eden/";
+        // !!! --------------------------------- !!!
+
+        recordButton.onclick = async () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                recordButton.textContent = "הקלט מחדש";
+                recordButton.classList.remove('recording');
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    audioChunks = [];
+                    recordButton.textContent = "עצור הקלטה...";
+                    recordButton.classList.add('recording');
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        sourceAudioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        checkIfReady();
+                    };
+                } catch (err) {
+                    statusDiv.textContent = "שגיאה: לא ניתן לגשת למיקרופון.";
+                    console.error("Error accessing microphone:", err);
+                }
+            }
+        };
+
+        refAudioInput.onchange = () => {
+            checkIfReady();
+        };
+
+        function checkIfReady() {
+            if (sourceAudioBlob && refAudioInput.files.length > 0) {
+                convertButton.disabled = false;
+            } else {
+                convertButton.disabled = true;
+            }
+        }
+
+        convertButton.onclick = async () => {
+            if (!sourceAudioBlob || refAudioInput.files.length === 0) {
+                alert("חובה להקליט ולהעלות קובץ יעד!");
+                return;
+            }
+
+            statusDiv.textContent = "מעבד... זה יכול לקחת כמה שניות...";
+            convertButton.disabled = true;
+            resultDiv.innerHTML = "";
+
+            const formData = new FormData();
+            formData.append('source_audio', sourceAudioBlob, 'source.wav');
+            formData.append('reference_audio', refAudioInput.files[0]);
+
+            try {
+                const response = await fetch(SERVER_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    resultDiv.innerHTML = `
+                        <h2>התוצאה מוכנה!</h2>
+                        <audio controls src="${audioUrl}"></audio>
+                        <a href="${audioUrl}" download="converted_voice.wav">
+                            <button>הורד ושתף</button>
+                        </a>`;
+                    statusDiv.textContent = "ההמרה הצליחה!";
+                } else {
+                    const errorData = await response.text();
+                    statusDiv.textContent = "אוי... קרתה שגיאה בשרת. נסה שוב.";
+                    console.error("Server error:", errorData);
+                }
+            } catch (error) {
+                statusDiv.textContent = "שגיאת רשת. ודא שהשרת פועל ושהכתובת נכונה.";
+                console.error(error);
+            } finally {
+                convertButton.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
