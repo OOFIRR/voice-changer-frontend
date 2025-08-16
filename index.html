@@ -101,7 +101,7 @@
                 return;
             }
 
-            statusDiv.textContent = "מעבד... השרת מתעורר, זה יכול לקחת כדקה...";
+            statusDiv.textContent = "מעבד, אנא המתן...";
             convertButton.disabled = true;
             resultDiv.innerHTML = "";
 
@@ -109,8 +109,8 @@
             formData.append('source_audio', sourceAudioBlob, 'source.webm');
             formData.append('reference_audio', refAudioInput.files[0]);
             
-            // This is the updated and correct server URL
-            const SERVER_URL = "https://voice-changer-v2.onrender.com/convert-voice-eden/";
+            // This is the updated URL for PythonAnywhere
+            const SERVER_URL = "https://ofirt.pythonanywhere.com/convert-voice-eden/";
 
             try {
                 const response = await fetch(SERVER_URL, {
@@ -129,9 +129,9 @@
                         </a>`;
                     statusDiv.textContent = "ההמרה הסתיימה בהצלחה!";
                 } else {
-                    const errorJson = await response.json();
+                    const errorText = await response.text();
                     statusDiv.textContent = `אוי... קרתה שגיאה בשרת. קוד: ${response.status}.`;
-                    console.error("Server error:", errorJson);
+                    console.error("Server error:", errorText);
                 }
             } catch (error) {
                 statusDiv.textContent = "שגיאת רשת. ודא שהשרת פועל ושהכתובת נכונה.";
